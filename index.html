@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1957 以来，人类送入轨道的每一颗卫星</title>
+<meta name="description" content="从 1957 年 Sputnik 1 到今天，人类送入地球轨道的每一颗卫星，都在一颗可拖动、可缩放的 3D 地球仪上，用时间轴回放天空被一点点填满的过程。数据：CelesTrak SATCAT。">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#020409;color:#e8f0ff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  #gl{position:fixed;inset:0}
+  canvas{display:block}
+  .panel{background:rgba(6,14,28,.78);border:1px solid rgba(120,180,255,.22);border-radius:12px;backdrop-filter:blur(8px)}
+  header{position:fixed;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:12px;pointer-events:none;z-index:5}
+  header .panel{pointer-events:auto;padding:12px 16px;max-width:640px}
+  h1{margin:0;font-size:20px;line-height:1.3;letter-spacing:.5px}
+  h1 small{display:block;font-size:12px;color:#9db8dd;font-weight:400;margin-top:4px;line-height:1.5}
+  #stats{padding:10px 14px;font-size:12px;line-height:1.7;min-width:210px;text-align:right}
+  #stats b{color:#7ee7ff;font-size:15px}
+  #stats .row{display:flex;justify-content:space-between;gap:14px}
+  #stats .row span:last-child{color:#cfe4ff}
+  #legend{position:fixed;left:14px;top:150px;z-index:5;padding:10px 12px;font-size:12px;line-height:1.9}
+  #legend h3,#panel h3{margin:0 0 6px;font-size:12px;color:#9db8dd;letter-spacing:1px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  #legend select,#controls select{background:#0b1c33;color:#e8f0ff;border:1px solid #2a4a73;border-radius:6px;padding:4px 6px;font-size:12px}
+  #searchBox{position:fixed;left:14px;top:330px;z-index:5;width:250px;padding:10px 12px}
+  #searchBox input{width:100%;background:#0b1c33;color:#fff;border:1px solid #2a4a73;border-radius:6px;padding:7px 9px;font-size:13px;outline:none}
+  #searchBox input:focus{border-color:#4dd8ff}
+  #searchCount{font-size:12px;color:#9db8dd;margin-top:6px;line-height:1.6}
+  #searchCount a{color:#7ee7ff;cursor:pointer;text-decoration:underline}
+  #infoCard{position:fixed;right:14px;top:150px;z-index:6;width:280px;padding:14px;display:none}
+  #infoCard h2{margin:0 0 8px;font-size:16px;color:#fff;word-break:break-word}
+  #infoCard dl{margin:0;font-size:13px;line-height:1.9}
+  #infoCard dt{display:inline;color:#9db8dd}
+  #infoCard dd{display:inline;margin:0;color:#e8f0ff}
+  #infoCard dd::after{content:"";display:block}
+  #infoCard .close{position:absolute;top:8px;right:10px;background:none;border:none;color:#9db8dd;font-size:18px;cursor:pointer}
+  #timeline{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;width:min(920px,calc(100% - 24px));z-index:5;padding:12px 16px 10px}
+  #dateRow{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  #curDate{font-size:28px;font-weight:700;color:#fff;letter-spacing:1px}
+  #curCounts{font-size:13px;color:#cfe4ff;line-height:1.6}
+  #curCounts b{color:#7ee7ff}
+  #sliderRow{display:flex;align-items:center;gap:10px;margin-top:8px}
+  #playBtn{flex:none;width:44px;height:36px;border-radius:8px;border:1px solid #2a6a8a;background:#0e2a44;color:#fff;font-size:15px;cursor:pointer}
+  #playBtn:hover{background:#16486e}
+  input[type=range]{flex:1;accent-color:#4dd8ff;height:6px}
+  #dateInput{background:#0b1c33;color:#fff;border:1px solid #2a4a73;border-radius:6px;padding:5px 7px;font-size:12px}
+  #controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center}
+  #controls button{background:#122a47;color:#dbeeff;border:1px solid #2a4a73;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+  #controls button:hover{border-color:#4dd8ff;color:#fff}
+  #controls label{font-size:12px;color:#9db8dd}
+  #yearChart{width:100%;height:52px;margin-top:8px}
+  footer{position:fixed;left:14px;bottom:12px;z-index:4;font-size:11px;color:#7d93b5;max-width:300px;line-height:1.6;text-shadow:0 1px 2px #000}
+  footer a{color:#8fb8dd}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:#020409;color:#9db8dd;font-size:14px;flex-direction:column;gap:10px}
+  .spin{width:34px;height:34px;border:3px solid #1c3a5e;border-top-color:#4dd8ff;border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (max-width:760px){
+    h1{font-size:16px}
+    #stats{display:none}
+    #legend{top:auto;bottom:230px;padding:7px 10px;font-size:11px}
+    #searchBox{top:auto;bottom:330px;width:200px}
+    #infoCard{top:auto;bottom:230px;right:10px;width:min(280px,calc(100% - 20px))}
+    #curDate{font-size:22px}
+    footer{display:none}
+  }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="loading"><div class="spin"></div><div>正在加载 28,328 颗卫星数据…</div></div>
+<div id="gl"></div>
+
+<header>
+  <div class="panel">
+    <h1>1957 以来，人类送入轨道的每一颗卫星
+      <small>从 Sputnik 1 到今天，每一个亮点都是一颗真实发射过的载荷。拖动旋转地球，滚轮缩放，拉动时间轴，看天空是怎么被一点点填满的。</small>
+    </h1>
+  </div>
+  <div class="panel" id="stats">
+    <div class="row"><span>累计发射（载荷）</span><b id="stTotal">28,328</b></div>
+    <div class="row"><span>Starlink</span><span id="stStarlink">13,024</span></div>
+    <div class="row"><span>地球同步轨道附近</span><span id="stGeo">1,405</span></div>
+    <div class="row"><span>仍在轨最老卫星</span><span>Vanguard 1 · 1958-03-17</span></div>
+    <div class="row"><span>发射最多国家 / 地区</span><span>US 18,185 · CIS 3,953 · PRC 2,152</span></div>
+  </div>
+</header>
+
+<div class="panel" id="legend">
+  <h3>颜色 · <select id="colorMode" aria-label="着色方式"><option value="status">按状态</option><option value="owner">按国家 / 地区</option><option value="alt">按轨道高度</option></select></h3>
+  <div id="legendItems"></div>
+  <label style="display:block;margin-top:6px;font-size:12px;color:#cfe4ff"><input type="checkbox" id="motionToggle" checked> 轨道缓慢运动</label>
+</div>
+
+<div class="panel" id="searchBox">
+  <input id="search" type="search" placeholder="搜索卫星：SPUTNIK / ISS / HUBBLE / STARLINK…" aria-label="搜索卫星">
+  <div id="searchCount">输入名字可高亮匹配的卫星。</div>
+</div>
+
+<div class="panel" id="infoCard">
+  <button class="close" id="infoClose" aria-label="关闭">×</button>
+  <h2 id="infoName"></h2>
+  <dl id="infoBody"></dl>
+</div>
+
+<div class="panel" id="timeline">
+  <div id="dateRow">
+    <span id="curDate">1957-10-04</span>
+    <span id="curCounts"></span>
+  </div>
+  <div id="sliderRow">
+    <button id="playBtn" aria-label="播放">▶</button>
+    <input id="slider" type="range" min="0" max="100" value="0" step="1" aria-label="时间轴">
+    <input id="dateInput" type="date" min="1957-10-04" max="2026-11-14" value="1957-10-04">
+  </div>
+  <canvas id="yearChart" width="880" height="52"></canvas>
+  <div id="controls">
+    <label>速度 <select id="speed"><option value="1">1 年 / 秒</option><option value="3" selected>3 年 / 秒</option><option value="10">10 年 / 秒</option><option value="30">30 年 / 秒</option></select></label>
+    <span style="font-size:12px;color:#9db8dd">跳到：</span>
+    <button data-date="1957-10-04">1957 Sputnik</button>
+    <button data-date="1961-04-12">1961</button>
+    <button data-date="1969-07-20">1969</button>
+    <button data-date="1998-11-20">1998 ISS</button>
+    <button data-date="2019-05-24">2019 Starlink</button>
+    <button data-date="2026-11-14">今天</button>
+  </div>
+</div>
+
+<footer>位置为示意：根据倾角 + 平均高度 + 固定相位生成，并非实时 TLE 精确位置。数据：<a href="https://celestrak.org/satcat/">CelesTrak SATCAT</a> 载荷清单（下载于 2026-11-16），含已再入的卫星，累计数按发射日期统计。</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- deterministic hash (no Math.random for satellite positions) ----------
+function splitmix32(a){return function(){a|=0;a=a+0x9E3779B9|0;let t=Math.imul(a^a>>>16,0x21f0aaad);t=Math.imul(t^t>>>15,0x735a2d97);return((t^t>>>15)>>>0)/4294967296;}}
+function hash01(seed,salt){const r=splitmix32((seed*2654435761^salt*40503)>>>0);return r();}
+
+const START=new Date(Date.UTC(1957,9,4)), END=new Date(Date.UTC(2026,10,14));
+const TOTAL_DAYS=Math.round((END-START)/86400000);
+const fmt=d=>d.toISOString().slice(0,10);
+const dayIndex=d=>Math.max(0,Math.min(TOTAL_DAYS,Math.round((d-START)/86400000)));
+const dateOf=i=>new Date(START.getTime()+i*86400000);
+
+// ---------- scene ----------
+const container=document.getElementById('gl');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+container.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x020409);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,0.6,3.2);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=0.06;
+controls.minDistance=1.6;controls.maxDistance=8;
+controls.autoRotate=true;controls.autoRotateSpeed=0.45;
+let idleTimer=null;
+controls.addEventListener('start',()=>{controls.autoRotate=false;clearTimeout(idleTimer);});
+controls.addEventListener('end',()=>{idleTimer=setTimeout(()=>controls.autoRotate=true,6000);});
+scene.add(new THREE.AmbientLight(0x8899bb,0.9));
+const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(5,2,4);scene.add(sun);
+
+// stars (seeded, not satellite positions)
+(function(){const n=2600,pos=new Float32Array(n*3),r=splitmix32(12345);
+for(let i=0;i<n;i++){const th=r()*Math.PI*2,ph=Math.acos(2*r()-1),rad=28+r()*22;
+pos[i*3]=rad*Math.sin(ph)*Math.cos(th);pos[i*3+1]=rad*Math.cos(ph);pos[i*3+2]=rad*Math.sin(ph)*Math.sin(th);}
+const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xbfd4ff,size:0.06,transparent:true,opacity:0.85,sizeAttenuation:true})));})();
+
+// earth: canvas fallback texture first, then try a real texture from jsDelivr
+function fallbackTexture(){
+  const c=document.createElement('canvas');c.width=1024;c.height=512;const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,512);g.addColorStop(0,'#0a2f5e');g.addColorStop(.5,'#0d4a8a');g.addColorStop(1,'#0a2f5e');
+  x.fillStyle=g;x.fillRect(0,0,1024,512);
+  x.strokeStyle='rgba(140,190,255,.28)';x.lineWidth=1;
+  for(let i=0;i<=12;i++){x.beginPath();x.moveTo(i*1024/12,0);x.lineTo(i*1024/12,512);x.stroke();}
+  for(let j=0;j<=6;j++){x.beginPath();x.moveTo(0,j*512/6);x.lineTo(1024,j*512/6);x.stroke();}
+  // stylised land blobs (fallback only — the real texture below replaces this when it loads)
+  x.fillStyle='#2e6b46';
+  const blobs=[[200,150,90,55],[330,220,70,45],[620,140,80,50],[700,260,60,40],[480,300,55,35],[850,180,45,30],[120,330,60,35]];
+  for(const [bx,by,bw,bh] of blobs){x.beginPath();x.ellipse(bx,by,bw,bh,0.4,0,Math.PI*2);x.fill();}
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+const earthMat=new THREE.MeshPhongMaterial({map:fallbackTexture(),shininess:12,specular:new THREE.Color(0x222222)});
+const earth=new THREE.Mesh(new THREE.SphereGeometry(1,64,64),earthMat);
+scene.add(earth);
+new THREE.TextureLoader().setCrossOrigin('anonymous').load(
+  'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/textures/planets/earth_atmos_2048.jpg',
+  t=>{t.colorSpace=THREE.SRGBColorSpace;earthMat.map=t;earthMat.needsUpdate=true;},
+  undefined,()=>{/* keep fallback */});
+// atmosphere glow
+const atm=new THREE.Mesh(new THREE.SphereGeometry(1.18,48,48),new THREE.ShaderMaterial({
+  vertexShader:'varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'varying vec3 vN;void main(){float i=pow(0.62-dot(vN,vec3(0.,0.,1.)),3.5);gl_FragColor=vec4(0.35,0.65,1.0,1.)*i;}',
+  blending:THREE.AdditiveBlending,side:THREE.BackSide,transparent:true,depthWrite:false}));
+scene.add(atm);
+
+// ---------- load data ----------
+const res=await fetch('satellites.json');
+const data=await res.json();
+const sats=data.satellites; // [name,norad,launch,decay,owner,incl,alt,period,orbitType]
+const N=sats.length;
+document.getElementById('loading').remove();
+
+// precompute per-satellite orbit params
+const launchDay=new Int32Array(N), decayDay=new Int32Array(N);
+const radius=new Float32Array(N), cosI=new Float32Array(N), sinI=new Float32Array(N),
+      cosR=new Float32Array(N), sinR=new Float32Array(N), phase0=new Float32Array(N),
+      angSpeed=new Float32Array(N);
+const posArr=new Float32Array(N*3), colArr=new Float32Array(N*3),
+      alphaArr=new Float32Array(N), sizeArr=new Float32Array(N);
+for(let i=0;i<N;i++){
+  const s=sats[i], norad=s[1]||i+1;
+  launchDay[i]=dayIndex(new Date(s[2]+'T00:00:00Z'));
+  decayDay[i]=s[3]?dayIndex(new Date(s[3]+'T00:00:00Z')):999999;
+  const alt=s[6]!=null?s[6]:550;
+  radius[i]=1+Math.sqrt(Math.min(alt,40000)/35786)*1.15;
+  const inc=(s[5]!=null?s[5]:50)*Math.PI/180, raan=hash01(norad,7)*Math.PI*2;
+  cosI[i]=Math.cos(inc);sinI[i]=Math.sin(inc);cosR[i]=Math.cos(raan);sinR[i]=Math.sin(raan);
+  phase0[i]=hash01(norad,3)*Math.PI*2;
+  const periodMin=s[7]!=null?s[7]:100;
+  angSpeed[i]=2*Math.PI/Math.max(20,periodMin*0.6); // rad per animation-second; LEO ~54s/orbit
+  sizeArr[i]=s[0].startsWith('STARLINK')?1.7:2.1;
+}
+const sortedDecay=Int32Array.from(decayDay).sort();
+const launchSorted=Int32Array.from(launchDay).sort();
+function countLE(arr,d){let lo=0,hi=arr.length;while(lo<hi){const m=(lo+hi)>>1;if(arr[m]<=d)lo=m+1;else hi=m;}return lo;}
+const perYear={};for(let i=0;i<N;i++)perYear[sats[i][2].slice(0,4)]=(perYear[sats[i][2].slice(0,4)]||0)+1;
+
+const geo=new THREE.BufferGeometry();
+geo.setAttribute('position',new THREE.BufferAttribute(posArr,3));
+geo.setAttribute('aCol',new THREE.BufferAttribute(colArr,3));
+geo.setAttribute('aAlpha',new THREE.BufferAttribute(alphaArr,1));
+geo.setAttribute('aSize',new THREE.BufferAttribute(sizeArr,1));
+const points=new THREE.Points(geo,new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,
+  vertexShader:`attribute vec3 aCol;attribute float aAlpha;attribute float aSize;
+    varying vec3 vC;varying float vA;
+    void main(){vC=aCol;vA=aAlpha;vec4 mv=modelViewMatrix*vec4(position,1.);
+    gl_PointSize=aSize*(240.0/-mv.z);gl_Position=projectionMatrix*mv;}`,
+  fragmentShader:`varying vec3 vC;varying float vA;
+    void main(){vec2 d=gl_PointCoord-vec2(0.5);if(dot(d,d)>0.25)discard;
+    gl_FragColor=vec4(vC,vA);}`
+}));
+points.frustumCulled=false;
+scene.add(points);
+
+// ---------- colours ----------
+const C={inOrbit:new THREE.Color(0x4dd8ff),decayed:new THREE.Color(0x8a6a4a),
+  starlink:new THREE.Color(0xe26bff),leo:new THREE.Color(0x4dd8ff),meo:new THREE.Color(0x7ee787),
+  geo:new THREE.Color(0xffc24d),heo:new THREE.Color(0xc99aff),unknown:new THREE.Color(0x8a94a6)};
+const ownerCol={US:0x4d9fff,CIS:0xff6b6b,PRC:0xffc24d,UK:0x7ee787,JPN:0xff9ecf};
+const LEGENDS={
+  status:[['#4dd8ff','在轨（截至当前日期）'],['#8a6a4a','已再入 / 已衰减'],['#e26bff','Starlink（在轨）']],
+  owner:[['#4d9fff','US 美国'],['#ff6b6b','CIS 俄罗斯 / 前苏联'],['#ffc24d','PRC 中国'],['#7ee787','UK 英国'],['#ff9ecf','JPN 日本'],['#8a94a6','其他']],
+  alt:[['#4dd8ff','LEO 低轨 < 2,000 km'],['#7ee787','MEO 中轨 2,000–34,000 km'],['#ffc24d','GEO 地球同步 ~35,786 km'],['#c99aff','HEO 高轨 / 其他'],['#8a94a6','高度未知']]
+};
+let colorMode='status', curDay=0, searchQ='', searchSet=null;
+function satColor(i,out){
+  const s=sats[i], alive=decayDay[i]>curDay, isSL=s[0].startsWith('STARLINK');
+  if(colorMode==='status'){
+    if(isSL&&alive)out.copy(C.starlink);else if(alive)out.copy(C.inOrbit);else out.copy(C.decayed);
+  }else if(colorMode==='owner'){
+    out.setHex(ownerCol[s[4]]||0x8a94a6);if(!alive)out.multiplyScalar(0.55);
+  }else{
+    const a=s[6];if(a==null)out.copy(C.unknown);else if(a<2000)out.copy(C.leo);else if(a<34000)out.copy(C.meo);else if(a<=37500)out.copy(C.geo);else out.copy(C.heo);
+    if(!alive)out.multiplyScalar(0.55);
+  }
+  return out;
+}
+const tmpC=new THREE.Color();
+function updateColorsAndAlpha(){
+  for(let i=0;i<N;i++){
+    satColor(i,tmpC);
+    colArr[i*3]=tmpC.r;colArr[i*3+1]=tmpC.g;colArr[i*3+2]=tmpC.b;
+    let a=launchDay[i]<=curDay?1:0;
+    if(a&&searchSet)a=searchSet.has(i)?1:0.07;
+    alphaArr[i]=a;
+    sizeArr[i]=(searchSet&&searchSet.has(i))?3.6:(sats[i][0].startsWith('STARLINK')?1.7:2.1);
+  }
+  geo.attributes.aCol.needsUpdate=true;geo.attributes.aAlpha.needsUpdate=true;geo.attributes.aSize.needsUpdate=true;
+}
+function updatePositions(t){
+  for(let i=0;i<N;i++){
+    const ph=phase0[i]+angSpeed[i]*t;
+    const cp=Math.cos(ph),sp=Math.sin(ph);
+    const y1=sp*cosI[i], z1=sp*sinI[i];
+    const x=cp*cosR[i]-y1*sinR[i], y=cp*sinR[i]+y1*cosR[i], z=z1, r=radius[i];
+    posArr[i*3]=x*r;posArr[i*3+1]=y*r;posArr[i*3+2]=z*r;
+  }
+  geo.attributes.position.needsUpdate=true;
+}
+
+// ---------- timeline UI ----------
+const slider=document.getElementById('slider'),dateInput=document.getElementById('dateInput'),
+      curDateEl=document.getElementById('curDate'),curCountsEl=document.getElementById('curCounts'),
+      playBtn=document.getElementById('playBtn'),speedSel=document.getElementById('speed');
+slider.max=TOTAL_DAYS;
+let playing=false,lastTs=0,lastRenderedDay=-1;
+function setDate(day,fromSlider){
+  const rounded=Math.max(0,Math.min(TOTAL_DAYS,Math.round(day)));
+  const dayChanged=rounded!==lastRenderedDay;
+  curDay=rounded;
+  if(!dayChanged)return;
+  lastRenderedDay=rounded;
+  const d=dateOf(curDay);
+  curDateEl.textContent=fmt(d);
+  if(!fromSlider)slider.value=curDay;
+  dateInput.value=fmt(d);
+  const launched=countLE(launchSorted,curDay), decayed=countLE(sortedDecay,curDay);
+  const yr=d.getUTCFullYear();
+  curCountsEl.innerHTML=`累计发射 <b>${launched.toLocaleString()}</b> · 在轨 <b>${(launched-decayed).toLocaleString()}</b> · ${yr} 年发射 <b>${(perYear[yr]||0).toLocaleString()}</b> 颗`;
+  updateColorsAndAlpha();drawChart(yr);
+}
+slider.addEventListener('input',()=>setDate(+slider.value,true));
+dateInput.addEventListener('change',()=>{const d=new Date(dateInput.value+'T00:00:00Z');if(!isNaN(d))setDate(dayIndex(d));});
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'⏸':'▶';lastTs=0;});
+document.querySelectorAll('#controls button[data-date]').forEach(b=>b.addEventListener('click',()=>setDate(dayIndex(new Date(b.dataset.date+'T00:00:00Z')))));
+document.getElementById('colorMode').addEventListener('change',e=>{colorMode=e.target.value;renderLegend();updateColorsAndAlpha();});
+document.getElementById('motionToggle').addEventListener('change',e=>{motionOn=e.target.checked;});
+function renderLegend(){
+  document.getElementById('legendItems').innerHTML=LEGENDS[colorMode].map(([c,t])=>`<div><span class="dot" style="background:${c}"></span>${t}</div>`).join('');
+}
+renderLegend();
+
+// year chart
+const chart=document.getElementById('yearChart'),cx=chart.getContext('2d');
+function drawChart(hlYear){
+  const W=chart.width,H=chart.height;cx.clearRect(0,0,W,H);
+  const years=Object.keys(perYear).map(Number).sort((a,b)=>a-b);
+  const max=Math.max(...Object.values(perYear)), bw=W/years.length;
+  years.forEach((y,i)=>{
+    const h=Math.max(1,perYear[y]/max*(H-14));
+    cx.fillStyle=y===hlYear?'#4dd8ff':'#2a5a86';
+    cx.fillRect(i*bw+1,H-h,bw-2,h);
+  });
+  cx.fillStyle='#9db8dd';cx.font='10px sans-serif';
+  cx.fillText('1957',2,11);cx.fillText('每年发射数 · '+hlYear+' 年高亮',W/2-70,11);cx.fillText('2026',W-28,11);
+}
+
+// ---------- search ----------
+const searchInput=document.getElementById('search'),searchCount=document.getElementById('searchCount');
+let searchTimer=null;
+searchInput.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(applySearch,180);});
+function applySearch(){
+  searchQ=searchInput.value.trim().toUpperCase();
+  if(!searchQ){searchSet=null;searchCount.textContent='输入名字可高亮匹配的卫星。';updateColorsAndAlpha();return;}
+  searchSet=new Set();
+  const hits=[];
+  for(let i=0;i<N;i++)if(sats[i][0].includes(searchQ)){searchSet.add(i);if(hits.length<5)hits.push(i);}
+  searchCount.innerHTML=`找到 <b>${searchSet.size.toLocaleString()}</b> 颗匹配「${searchQ}」`+
+    (hits.length?'<br>'+hits.map(i=>`<a data-i="${i}">${sats[i][0]}</a>`).join(' · '):'');
+  searchCount.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>showInfo(+a.dataset.i)));
+  updateColorsAndAlpha();
+}
+
+// ---------- click a satellite ----------
+const ray=new THREE.Raycaster();ray.params.Points.threshold=0.025;
+const mouse=new THREE.Vector2();let lastClick=0;
+renderer.domElement.addEventListener('pointerdown',e=>{
+  const now=performance.now();if(now-lastClick<250)return;lastClick=now;
+  mouse.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);
+  ray.setFromCamera(mouse,camera);
+  const hit=ray.intersectObject(points);
+  if(hit.length)showInfo(hit[0].index);
+});
+function showInfo(i){
+  const s=sats[i], alive=decayDay[i]>curDay;
+  document.getElementById('infoName').textContent=s[0];
+  document.getElementById('infoBody').innerHTML=
+    `<dt>NORAD 编号：</dt><dd>${s[1]??'—'}</dd>`+
+    `<dt>发射日期：</dt><dd>${s[2]}</dd>`+
+    `<dt>拥有者：</dt><dd>${s[4]??'—'}</dd>`+
+    `<dt>倾角：</dt><dd>${s[5]!=null?s[5]+'°':'—'}</dd>`+
+    `<dt>平均高度：</dt><dd>${s[6]!=null?s[6].toLocaleString()+' km':'—'}</dd>`+
+    `<dt>周期：</dt><dd>${s[7]!=null?s[7]+' 分钟':'—'}</dd>`+
+    `<dt>轨道类型：</dt><dd>${s[8]??'—'}</dd>`+
+    `<dt>状态：</dt><dd>${alive?'在轨（截至 '+fmt(dateOf(curDay))+'）':'已再入'+(s[3]?' · '+s[3]:'')}</dd>`;
+  document.getElementById('infoCard').style.display='block';
+}
+document.getElementById('infoClose').addEventListener('click',()=>document.getElementById('infoCard').style.display='none');
+
+// ---------- loop ----------
+let motionOn=true, animT=0;
+setDate(0);
+updatePositions(0);
+function animate(ts){
+  requestAnimationFrame(animate);
+  const dt=Math.min(0.1,(ts-lastTs)/1000||0.016);lastTs=ts;
+  if(playing){
+    curDay+= (+speedSel.value)*365.25*dt;
+    if(curDay>=TOTAL_DAYS){curDay=TOTAL_DAYS;playing=false;playBtn.textContent='▶';}
+    setDate(curDay);
+  }
+  if(motionOn){animT+=dt;updatePositions(animT);}
+  controls.update();
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>
